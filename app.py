@@ -12,11 +12,16 @@ st.caption(
 
 CSV_PATH = "program_ratings_modified.csv"
 
-# Assignment limits. NOTE: the brief gives a default MUT_R of 0.2 but a range of
-# 0.01-0.05, which contradict each other. The slider upper bound is raised to
-# 0.20 so the 0.2 default is valid. Set MUT_MAX = 0.05 to enforce the strict range.
-CO_MIN, CO_MAX, CO_DEFAULT = 0.0, 0.95, 0.8
-MUT_MIN, MUT_MAX, MUT_DEFAULT = 0.01, 0.20, 0.2
+# Assignment limits. The brief gives a default MUT_R of 0.2 but a range of
+# 0.01-0.05. Lecturer's answer: Trial 1 uses the default (CO_R 0.8, MUT_R 0.2);
+# Trials 2 and 3 must stay inside the stated range (MUT_R 0.01-0.05).
+CO_MIN, CO_MAX = 0.0, 0.95
+MUT_MIN = 0.01
+TRIAL_CFG = {
+    1: dict(co=0.8, mut=0.2, mut_max=0.20),   # default trial
+    2: dict(co=0.5, mut=0.05, mut_max=0.05),  # in-range trial
+    3: dict(co=0.95, mut=0.01, mut_max=0.05), # in-range trial
+}
 
 MAX_REPEATS = 2      # a program may air at most twice per day (as in the tutorial)
 PENALTY = 1.0        # fitness penalty per airing above MAX_REPEATS
@@ -44,7 +49,7 @@ n_slots = len(slots)
 RATING = {p: list(ratings_df.loc[p]) for p in programs}
 
 with st.expander("View ratings data (modified)"):
-    st.dataframe(ratings_df, use_container_width=True)
+    st.dataframe(ratings_df, width="stretch")
 
 
 # ----------------------------------------------------------------------------
@@ -126,14 +131,17 @@ def schedule_table(schedule):
 if "results" not in st.session_state:
     st.session_state.results = {}
 
-defaults = {1: (0.8, 0.2), 2: (0.5, 0.05), 3: (0.95, 0.01)}
 tabs = st.tabs(["Trial 1", "Trial 2", "Trial 3", "Comparison"])
 
 for t, tab in zip([1, 2, 3], tabs[:3]):
     with tab:
         c1, c2 = st.columns(2)
-        co_r = c1.slider("CO_R (Crossover Rate)", CO_MIN, CO_MAX, defaults[t][0], 0.05, key=f"co{t}")
-        mut_r = c2.slider("MUT_R (Mutation Rate)", MUT_MIN, MUT_MAX, defaults[t][1], 0.01, key=f"mut{t}")
+        co_r = c1.slider("CO_R (Crossover Rate)", CO_MIN, CO_MAX, TRIAL_CFG[t]["co"], 0.05, key=f"co{t}")
+        mut_r = c2.slider("MUT_R (Mutation Rate)", MUT_MIN, TRIAL_CFG[t]["mut_max"], TRIAL_CFG[t]["mut"], 0.01, key=f"mut{t}")
+        if t == 1:
+            st.caption("Trial 1 uses the default values (CO_R 0.8, MUT_R 0.2).")
+        else:
+            st.caption("MUT_R is limited to 0.01–0.05 for this trial.")
         if st.button(f"Run Trial {t}", key=f"run{t}", type="primary"):
             with st.spinner("Evolving schedule..."):
                 best, score, hist = run_ga(co_r, mut_r)
@@ -146,7 +154,7 @@ for t, tab in zip([1, 2, 3], tabs[:3]):
                 f"Total rating = {total_rating(res['best']):.2f}"
             )
             left, right = st.columns([3, 2])
-            left.dataframe(schedule_table(res["best"]), use_container_width=True, hide_index=True)
+            left.dataframe(schedule_table(res["best"]), width="stretch", hide_index=True)
             right.line_chart(pd.Series(res["hist"], name="Best fitness"))
 
 with tabs[3]:
@@ -166,7 +174,7 @@ with tabs[3]:
                 for t, r in sorted(done.items())
             ]
         )
-        st.dataframe(summary, use_container_width=True, hide_index=True)
+        st.dataframe(summary, width="stretch", hide_index=True)
         st.line_chart(pd.DataFrame({f"Trial {t}": r["hist"] for t, r in done.items()}))
         best_t = max(done, key=lambda k: done[k]["score"])
         st.write(f"**Best trial so far:** Trial {best_t}")
